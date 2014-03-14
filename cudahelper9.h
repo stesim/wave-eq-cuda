@@ -1,9 +1,11 @@
 #include "spdiamat.h"
 
-namespace CudaHelper7
+namespace CudaHelper9
 {
 
-//extern __shared__ double2 sharedBuffer[];
+//static const unsigned int CONST_BUFFER_SIZE = 32768;
+static const unsigned int CONST_BUFFER_SIZE = 8192;
+__constant__ char constBuffer[ CONST_BUFFER_SIZE ];
 
 __device__
 inline void mulMatVec( unsigned int stride, const SpDiaMat* mat, const double2* v, double2* res )
@@ -64,16 +66,6 @@ inline void addScaledVecs(
 	}
 }
 
-__device__
-inline void memcpy_vec( unsigned int stride, double2* dst, const double2* src, unsigned int size )
-{
-	for( unsigned int i = 0; i < size; ++i )
-	{
-		dst[ i * stride ].x = src[ i * stride ].x;
-		dst[ i * stride ].y = src[ i * stride ].y;
-	}
-}
-
 __global__
 void calculateFirstStep(
 		double dt,
@@ -106,6 +98,8 @@ void calculateFirstStep(
 	{
 		mat = &matInner;
 	}
+	mat->offsets = (int*)( constBuffer + mat->constPos );
+	mat->values = (double*)( mat->offsets + mat->diags );
 
 	mulMatVec( blockDim.x, mat, f, z );
 	addScaledVecs( blockDim.x, ip, 0.5, z, ( 1.0 - dt / h * dt / h ), f, z );
@@ -130,8 +124,6 @@ void calculateNSteps(
 	unsigned int vecIdx = blockIdx.x * blockDim.x * ip / 2 + threadIdx.x;
 
 	double2* z = &Z[ vecIdx ];
-	//double2* z = &sharedBuffer[ threadIdx.x ];
-	//memcpy_vec( blockDim.x, z, &Z[ vecIdx ], ip / 2 );
 	double2* w = &W[ vecIdx ];
 	double2* u = &U[ vecIdx ];
 
@@ -148,6 +140,8 @@ void calculateNSteps(
 	{
 		mat = &matInner;
 	}
+	mat->offsets = (int*)( constBuffer + mat->constPos );
+	mat->values = (double*)( mat->offsets + mat->diags );
 
 	double2* swap;
 	for( unsigned int i = 0; i < nsteps; ++i )
@@ -163,7 +157,16 @@ void calculateNSteps(
 		z = u;
 		u = swap;
 	}
-	//memcpy_vec( blockDim.x, &Z[ vecIdx ], z, ip / 2 );
+}
+
+__device__
+inline void memcpy_vec( unsigned int stride, double2* dst, const double2* src, unsigned int size )
+{
+	for( unsigned int i = 0; i < size; ++i )
+	{
+		dst[ i * stride ].x = src[ i * stride ].x;
+		dst[ i * stride ].y = src[ i * stride ].y;
+	}
 }
 
 __global__

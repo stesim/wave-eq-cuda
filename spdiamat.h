@@ -13,4 +13,5 @@ struct SpDiaMat
 	int* offsets;
 	real* values;
 	unsigned int valuesSize;
+	unsigned int constPos;
 };

@@ -7,6 +7,7 @@
 #include "solver6.h"
 #include "solver7.h"
 #include "solver8.h"
+#include "solver9.h"
 #include <chrono>
 #include <fstream>
 
@@ -29,7 +30,7 @@ double sol( double x, double t )
 
 int main( int argc, char* argv[] )
 {
-	Solver6 s;
+	Solver9 s;
 	s.np = ( 1 << 14 );
 	s.ns = ( 1 << 7 );
 	s.L = 150.0;
@@ -39,7 +40,7 @@ int main( int argc, char* argv[] )
 	s.sol = sol;
 	//s.threads = 1024;
 
-	for( s.threads = 32; s.threads <= 128; s.threads *= 2 )
+	for( s.threads = 64; s.threads <= 64; s.threads *= 2 )
 	{
 		std::cout << "threads: " << s.threads << std::endl;
 

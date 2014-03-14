@@ -15,6 +15,8 @@ Solver3::~Solver3()
 
 void Solver3::solve()
 {
+	cudaDeviceSetCacheConfig( cudaFuncCachePreferShared );
+
 	unsigned int ip = np / ns;
 	double h = 2 * L / ( np - 1 );
 	double dt = h / 4.0;

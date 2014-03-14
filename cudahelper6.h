@@ -135,10 +135,8 @@ void calculateFirstStep(
 	}
 
 	mulMatVec( blockDim.x, mat, f, z );
-	///*
 	addScaledVecs( blockDim.x, ip, 0.5, z, ( 1.0 - dt / h * dt / h ), f, z );
 	addVecScaledVec( blockDim.x, ip, z, dt, g );
-	//*/
 }
 
 __global__

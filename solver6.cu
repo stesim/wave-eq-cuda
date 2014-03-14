@@ -27,6 +27,10 @@ void Solver6::solve()
 	unsigned int gpudom = 2 * ns;
 	unsigned int blocks = gpudom / threads;
 
+	unsigned int kmax = ceil( T / ( nsteps * dt ) );
+	solution = std::vector<double>( np );
+	error = std::vector<double>( kmax );
+
 	std::vector<double> z( gpudom * ip );
 	std::vector<double> w( gpudom * ip );
 	std::vector<double> u( gpudom * ip );
@@ -112,18 +116,30 @@ void Solver6::solve()
 			d_z,
 			d_w );
 
-	/*
-	cudaMemcpy( z.data(), d_z, bufSize, cudaMemcpyDeviceToHost );
-	for( unsigned int i = 0; i < 32; ++i )
-	{
-		std::cout << z[ i ] << std::endl;
-	}
-	*/
+		/*
+		cudaMemcpy( z.data(), d_z, bufSize, cudaMemcpyDeviceToHost );
+		for( unsigned int n = 0; n < blocks; ++n )
+		{
+			for( unsigned int j = 0; j < threads; j += 2 )
+			{
+				if( n == blocks - 1 && j == threads - 1 )
+				{
+					continue;
+				}
 
-	solution = std::vector<double>( np );
-
-	unsigned int kmax = ceil( T / ( nsteps * dt ) );
-	error = std::vector<double>( kmax );
+				unsigned int base = n * threads * ip + j;
+				unsigned int dstBase = ( n * threads + j ) * ip / 2;
+				for( unsigned int i = 0; i < ip; ++i )
+				{
+					solution[ dstBase + i ] = z[ base + i * threads ];
+				}
+			}
+		}
+		for( unsigned int i = 0; i < 32; ++i )
+		{
+			std::cout << solution[ i ] << std::endl;
+		}
+		*/
 
 	for( unsigned int k = 0; k < kmax; ++k )
 	{
@@ -176,16 +192,16 @@ void Solver6::solve()
 		*/
 		for( unsigned int n = 0; n < blocks; ++n )
 		{
-			for( unsigned int k = 0; k < threads; ++k )
+			for( unsigned int j = 0; j < threads; j += 2 )
 			{
-				if( n == blocks - 1 && k == threads - 1 )
+				if( n == blocks - 1 && j == threads - 1 )
 				{
 					continue;
 				}
 
-				unsigned int base = n * threads * ip + k;
-				unsigned int dstBase = ( n * threads + k ) * ip / 2;
-				for( unsigned int i = 0; i < ip / 2; ++i )
+				unsigned int base = n * threads * ip + j;
+				unsigned int dstBase = ( n * threads + j ) * ip / 2;
+				for( unsigned int i = 0; i < ip; ++i )
 				{
 					solution[ dstBase + i ] = z[ base + i * threads ];
 				}

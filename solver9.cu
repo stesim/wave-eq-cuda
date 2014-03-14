@@ -1,21 +1,21 @@
-#include "solver7.h"
+#include "solver9.h"
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include <cstring>
-#include "cudahelper7.h"
+#include "cudahelper9.h"
 #include <iostream>
 
-Solver7::Solver7()
+Solver9::Solver9()
 {
 }
 
-Solver7::~Solver7()
+Solver9::~Solver9()
 {
 }
 
-void Solver7::solve()
+void Solver9::solve()
 {
-	//cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 );
+	cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 );
 
 	unsigned int ip = np / ns;
 	double h = 2 * L / ( np - 1 );
@@ -80,14 +80,32 @@ void Solver7::solve()
 	f.clear();
 	g.clear();
 
-	SpDiaMat matInner = gpuAllocFDMatrixInner( l2, ip );
-	SpDiaMat matLeft = gpuAllocFDMatrixLeft( l2, ip );
-	SpDiaMat matRight = gpuAllocFDMatrixRight( l2, ip );
+	unsigned int constBufferOffset = 0;
+	SpDiaMat matInner = gpuAllocFDMatrixInner( l2, ip, constBufferOffset );
+	constBufferOffset += matInner.diags * sizeof( int ) + matInner.valuesSize * sizeof( double );
+	SpDiaMat matLeft = gpuAllocFDMatrixLeft( l2, ip, constBufferOffset );
+	constBufferOffset += matLeft.diags * sizeof( int ) + matLeft.valuesSize * sizeof( double );
+	SpDiaMat matRight = gpuAllocFDMatrixRight( l2, ip, constBufferOffset );
 
-	CudaHelper7::calculateFirstStep<<<blocks, threads>>>(
+
+	/*
+	double tmp[ 100 ];
+	for( unsigned int i = 0; i < 100; ++i )
+	{
+		tmp[ i ] = i;
+	}
+	cudaMemcpyFromSymbol( tmp, CudaHelper9::constBuffer, 100 * sizeof( double ) );
+	for( unsigned int i = 0; i < 100; ++i )
+	{
+		std::cout << tmp[ i ] << std::endl;
+	}
+	*/
+
+
+	CudaHelper9::calculateFirstStep<<<blocks, threads>>>(
 			dt,	h, ip, matInner, matLeft, matRight,	d_w, d_u, d_z );
 
-	CudaHelper7::synchronizeResults<<<blocks, threads>>>(
+	CudaHelper9::synchronizeResults<<<blocks, threads>>>(
 			ip,
 			d_z,
 			d_w );
@@ -120,7 +138,7 @@ void Solver7::solve()
 
 	for( unsigned int k = 0; k < kmax; ++k )
 	{
-		CudaHelper7::calculateNSteps<<<blocks, threads/*, threads * ip * sizeof( double )*/>>>(
+		CudaHelper9::calculateNSteps<<<blocks, threads>>>(
 				nsteps,	2.0 * ( 1.0 - l2 ),	ip,	matInner, matLeft, matRight,
 				d_z, d_w, d_u );
 
@@ -140,12 +158,10 @@ void Solver7::solve()
 				d_u = swap;
 		}
 
-		CudaHelper7::synchronizeResults<<<blocks, threads>>>(
+		CudaHelper9::synchronizeResults<<<blocks, threads>>>(
 				ip,
 				d_z,
 				d_w );
-
-		cudaThreadSynchronize();
 
 		cudaMemcpy(
 				z.data(),
@@ -192,15 +208,17 @@ void Solver7::solve()
 	gpuFreeFDMatrix( matRight );
 }
 
-SpDiaMat Solver7::gpuAllocFDMatrixInner( double l2, unsigned int ip )
+SpDiaMat Solver9::gpuAllocFDMatrixInner( double l2, unsigned int ip, unsigned int offset )
 {
 	unsigned int diagSize = ip - 1;
 
 	SpDiaMat mat;
 	mat.n = ip;
 	mat.diags = 2;
-	cudaMalloc( &mat.offsets, 2 * sizeof( int ) );
-	cudaMalloc( &mat.values, 2 * diagSize * sizeof( double ) );
+	mat.valuesSize = 2 * diagSize;
+	mat.constPos = offset;
+	//cudaMalloc( &mat.offsets, 2 * sizeof( int ) );
+	//cudaMalloc( &mat.values, 2 * diagSize * sizeof( double ) );
 
 	static const int offsets[] = { 1, -1 };
 	double* values = new double[ 2 * diagSize * sizeof( double ) ];
@@ -211,22 +229,26 @@ SpDiaMat Solver7::gpuAllocFDMatrixInner( double l2, unsigned int ip )
 		values[ diagSize + i ] = l2;
 	}
 
-	cudaMemcpy( const_cast<int*>( mat.offsets ), offsets, 2 * sizeof( int ), cudaMemcpyHostToDevice );
-	cudaMemcpy( const_cast<double*>( mat.values ), values, 2 * diagSize * sizeof( double ), cudaMemcpyHostToDevice );
+	cudaMemcpyToSymbol( CudaHelper9::constBuffer, offsets, 2 * sizeof( int ), offset, cudaMemcpyHostToDevice );
+	cudaMemcpyToSymbol( CudaHelper9::constBuffer, values, 2 * diagSize * sizeof( double ), offset + 2 * sizeof( int ), cudaMemcpyHostToDevice );
+	//cudaMemcpy( const_cast<int*>( mat.offsets ), offsets, 2 * sizeof( int ), cudaMemcpyHostToDevice );
+	//cudaMemcpy( const_cast<double*>( mat.values ), values, 2 * diagSize * sizeof( double ), cudaMemcpyHostToDevice );
 
 	delete[] values;
 	return mat;
 }
 
-SpDiaMat Solver7::gpuAllocFDMatrixLeft( double l2, unsigned int ip )
+SpDiaMat Solver9::gpuAllocFDMatrixLeft( double l2, unsigned int ip, unsigned int offset )
 {
 	unsigned int diagSize = ip - 1;
 
 	SpDiaMat mat;
 	mat.n = ip;
 	mat.diags = 2;
-	cudaMalloc( &mat.offsets, 2 * sizeof( int ) );
-	cudaMalloc( &mat.values, 2 * diagSize * sizeof( double ) );
+	mat.valuesSize = 2 * diagSize;
+	mat.constPos = offset;
+	//cudaMalloc( &mat.offsets, 2 * sizeof( int ) );
+	//cudaMalloc( &mat.values, 2 * diagSize * sizeof( double ) );
 
 	static const int offsets[] = { 1, -1 };
 	double* values = new double[ 2 * diagSize * sizeof( double ) ];
@@ -237,22 +259,26 @@ SpDiaMat Solver7::gpuAllocFDMatrixLeft( double l2, unsigned int ip )
 		values[ diagSize + i ] = l2;
 	}
 
-	cudaMemcpy( const_cast<int*>( mat.offsets ), offsets, 2 * sizeof( int ), cudaMemcpyHostToDevice );
-	cudaMemcpy( const_cast<double*>( mat.values ), values, 2 * diagSize * sizeof( double ), cudaMemcpyHostToDevice );
+	cudaMemcpyToSymbol( CudaHelper9::constBuffer, offsets, 2 * sizeof( int ), offset, cudaMemcpyHostToDevice );
+	cudaMemcpyToSymbol( CudaHelper9::constBuffer, values, 2 * diagSize * sizeof( double ), offset + 2 * sizeof( int ), cudaMemcpyHostToDevice );
+	//cudaMemcpy( const_cast<int*>( mat.offsets ), offsets, 2 * sizeof( int ), cudaMemcpyHostToDevice );
+	//cudaMemcpy( const_cast<double*>( mat.values ), values, 2 * diagSize * sizeof( double ), cudaMemcpyHostToDevice );
 
 	delete[] values;
 	return mat;
 }
 
-SpDiaMat Solver7::gpuAllocFDMatrixRight( double l2, unsigned int ip )
+SpDiaMat Solver9::gpuAllocFDMatrixRight( double l2, unsigned int ip, unsigned int offset )
 {
 	unsigned int diagSize = ip - 1;
 
 	SpDiaMat mat;
 	mat.n = ip;
 	mat.diags = 2;
-	cudaMalloc( &mat.offsets, 2 * sizeof( int ) );
-	cudaMalloc( &mat.values, 2 * diagSize * sizeof( double ) );
+	mat.valuesSize = 2 * diagSize;
+	mat.constPos = offset;
+	//cudaMalloc( &mat.offsets, 2 * sizeof( int ) );
+	//cudaMalloc( &mat.values, 2 * diagSize * sizeof( double ) );
 
 	static const int offsets[] = { 1, -1 };
 	double* values = new double[ 2 * diagSize * sizeof( double ) ];
@@ -263,17 +289,19 @@ SpDiaMat Solver7::gpuAllocFDMatrixRight( double l2, unsigned int ip )
 		values[ diagSize + i ] = ( i != diagSize - 1 ? l2 : 2.0 * l2 );
 	}
 
-	cudaMemcpy( const_cast<int*>( mat.offsets ), offsets, 2 * sizeof( int ), cudaMemcpyHostToDevice );
-	cudaMemcpy( const_cast<double*>( mat.values ), values, 2 * diagSize * sizeof( double ), cudaMemcpyHostToDevice );
+	cudaMemcpyToSymbol( CudaHelper9::constBuffer, offsets, 2 * sizeof( int ), offset, cudaMemcpyHostToDevice );
+	cudaMemcpyToSymbol( CudaHelper9::constBuffer, values, 2 * diagSize * sizeof( double ), offset + 2 * sizeof( int ), cudaMemcpyHostToDevice );
+	//cudaMemcpy( const_cast<int*>( mat.offsets ), offsets, 2 * sizeof( int ), cudaMemcpyHostToDevice );
+	//cudaMemcpy( const_cast<double*>( mat.values ), values, 2 * diagSize * sizeof( double ), cudaMemcpyHostToDevice );
 
 	delete[] values;
 	return mat;
 }
 
-void Solver7::gpuFreeFDMatrix( SpDiaMat& mat )
+void Solver9::gpuFreeFDMatrix( SpDiaMat& mat )
 {
-	cudaFree( const_cast<int*>( mat.offsets ) );
+	//cudaFree( mat.offsets );
 	mat.offsets = NULL;
-	cudaFree( const_cast<double*>( mat.values ) );
+	//cudaFree( mat.values );
 	mat.values = NULL;
 }
