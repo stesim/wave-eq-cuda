@@ -1,12 +1,6 @@
 #include <iostream>
-#include "solver.h"
-#include "solver2.h"
-#include "solver3.h"
-#include "solver4.h"
-#include "solver5.h"
 #include "solver6.h"
 #include "solver7.h"
-#include "solver8.h"
 #include "solver9.h"
 #include <chrono>
 #include <fstream>
@@ -30,46 +24,102 @@ double sol( double x, double t )
 
 int main( int argc, char* argv[] )
 {
-	Solver9 s;
-	s.np = ( 1 << 14 );
-	s.ns = ( 1 << 7 );
-	s.L = 150.0;
-	s.T = 100.0;
-	s.u0 = u0;
-	s.u1 = u1;
-	s.sol = sol;
-	//s.threads = 1024;
-
-	for( s.threads = 64; s.threads <= 64; s.threads *= 2 )
+#ifdef VAL_N
+	unsigned int N = VAL_N;
+#else
+	unsigned int N = 14;
+#endif
+#ifdef VAL_n
+	unsigned int n = VAL_n;
+#else
+	unsigned int n = 7;
+#endif
+	double L = 150.0;
+	double T = 100.0;
+	
+	unsigned int threadsMin = 16;
+	unsigned int threadsMax = 64;
+	unsigned int cases = 0;
+	for( unsigned int i = threadsMin; i <= threadsMax; i <<= 1 )
 	{
-		std::cout << "threads: " << s.threads << std::endl;
-
-		auto start = std::chrono::high_resolution_clock::now();
-		s.solve();
-		auto elapsed = std::chrono::high_resolution_clock::now() - start;
-		std::cout << "time: " << (double)elapsed.count() * std::chrono::high_resolution_clock::period::num / std::chrono::high_resolution_clock::period::den << 's' << std::endl;
-		std::cout << std::endl;
+		++cases;
 	}
 
-	std::cout << "error (k=0):    " << s.error[ 0 ] << std::endl;
-	std::cout << "error (k=kmax): " << s.error[ s.error.size() - 1 ] << std::endl;
-
-	/*
-	std::ofstream file;
-	file.open( "error.txt" );
-	for( unsigned int i = 0; i < s.error.size(); ++i )
+	std::vector<SolverBase*> solvers( 3 );
+	solvers[ 0 ] = new Solver6();
+	solvers[ 1 ] = new Solver7();
+	solvers[ 2 ] = new Solver9();
+	for( unsigned int i = 0; i < solvers.size(); ++i )
 	{
-		file << s.error[ i ] << std::endl;
+		SolverBase& s = *solvers[ i ];
+		s.np = ( 1 << N );
+		s.ns = ( 1 << n );
+		s.L = L;
+		s.T = T;
+		s.u0 = u0;
+		s.u1 = u1;
+		s.sol = sol;
 	}
-	file.close();
+		
+	std::vector<unsigned int> threads( cases * solvers.size() );
+	std::vector<double> time( cases * solvers.size() );
+	std::vector<double> error( cases * solvers.size() );
 
-	file.open( "solution.txt" );
-	for( unsigned int i = 0; i < s.solution.size(); ++i )
+	unsigned int runs = 2;
+	
+	char filename[ 256 ];
+	for( unsigned int i = 0; i < runs; ++i )
 	{
-		file << s.solution[ i ] << std::endl;
+		for( unsigned int j = 0; j < solvers.size(); ++j )
+		{
+			SolverBase& s = *solvers[ j ];
+			std::cout << "solver: " << s.getName() << std::endl;
+
+			for( unsigned int k = 0; k < cases; ++k )
+			{
+				s.threads = ( threadsMin << k );
+				std::cout << "threads: " << s.threads << std::endl;
+
+				auto start = std::chrono::high_resolution_clock::now();
+				s.solve();
+				auto elapsed = std::chrono::high_resolution_clock::now() - start;
+				double realTime = (double)elapsed.count()
+					* std::chrono::high_resolution_clock::period::num
+					/ std::chrono::high_resolution_clock::period::den;
+				std::cout << "time: " << realTime << 's' << std::endl;
+				std::cout << "error: " << s.error.back() << std::endl;
+				std::cout << std::endl;
+
+				unsigned int resIdx = j * cases + k;
+				threads[ resIdx ] = s.threads;
+				time[ resIdx ] = realTime;
+				error[ resIdx ] = s.error.back();
+			}
+		}
+
+		sprintf( filename, "results-N%i-n%i-run%i.txt", N, n, i );
+		std::ofstream file( filename );
+		file << "N n L T" << std::endl;
+		file << N << ' ' << n << ' ' << L << ' ' << T << std::endl;
+		file << std::endl;
+		file << "solver threads time error" << std::endl;
+		for( unsigned int j = 0; j < solvers.size(); ++j )
+		{
+			for( unsigned int k = 0; k < cases; ++k )
+			{
+				unsigned int idx = j * cases + k;
+				file << solvers[ j ]->getName() << ' ' << threads[ idx ] << ' '
+					<< time[ idx ] << ' ' << error[ idx ] << std::endl;
+
+			}
+		}
+		file.close();
 	}
-	file.close();
-	*/
+
+	for( unsigned int i = 0; i < solvers.size(); ++i )
+	{
+		delete solvers[ i ];
+	}
 
 	return 0;
 }

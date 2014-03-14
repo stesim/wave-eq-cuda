@@ -1,8 +1,20 @@
+ifdef VAL_N
+	CMD_N = -DVAL_N=$(VAL_N)
+else
+	CMD_N =
+endif
+
+ifdef VAL_n
+	CMD_n = -DVAL_n=$(VAL_n)
+else
+	CMD_n =
+endif
+
 BIN = $(notdir $(shell pwd))
 #SRC = main.cpp
 SRC = $(wildcard *.cpp)
 OBJ = $(SRC:%.cpp=%.cpp.o)
-CXXFLAGS = -std=c++11 -march=native -Wall -O3
+CXXFLAGS = -std=c++11 -march=native -Wall -O3 $(CMD_N) $(CMD_n)
 LIBS = -L/opt/cuda/lib64 -lcudart
 CXX = g++
 DEPENDFILE = .depend
@@ -37,6 +49,9 @@ force:
 	make
 
 run: $(BIN)
+	./$(BIN)
+
+optirun: $(BIN)
 	optirun ./$(BIN)
 
 .PHONY: all depend clean

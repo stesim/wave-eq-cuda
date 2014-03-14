@@ -1,0 +1,10 @@
+#!/bin/bash
+
+make force VAL_N=14 VAL_n=7
+make run
+make force VAL_N=15 VAL_n=7
+make run
+make force VAL_N=15 VAL_n=8
+make run
+make force VAL_N=16 VAL_n=8
+make run

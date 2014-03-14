@@ -192,6 +192,11 @@ void Solver7::solve()
 	gpuFreeFDMatrix( matRight );
 }
 
+const char* Solver7::getName() const
+{
+	return "Solver7";
+}
+
 SpDiaMat Solver7::gpuAllocFDMatrixInner( double l2, unsigned int ip )
 {
 	unsigned int diagSize = ip - 1;
