@@ -1,3 +1,5 @@
+/* Coalesced scalar */
+
 #include "spdiamat.h"
 
 namespace CudaHelper6

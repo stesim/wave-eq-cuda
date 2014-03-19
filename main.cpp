@@ -1,9 +1,13 @@
 #include <iostream>
-#include "solver6.h"
-#include "solver7.h"
-#include "solver9.h"
+#include "solverbase.h"
+#include "cpusolver0.h"
+#include "cpusolver1.h"
+//#include "solver6.h"
+//#include "solver7.h"
+//#include "solver9.h"
 #include <chrono>
 #include <fstream>
+#include <vector>
 
 double u0( double x )
 {
@@ -37,18 +41,20 @@ int main( int argc, char* argv[] )
 	double L = 150.0;
 	double T = 100.0;
 	
-	unsigned int threadsMin = 16;
-	unsigned int threadsMax = 64;
+	unsigned int threadsMin = 8;
+	unsigned int threadsMax = 8;
 	unsigned int cases = 0;
 	for( unsigned int i = threadsMin; i <= threadsMax; i <<= 1 )
 	{
 		++cases;
 	}
 
-	std::vector<SolverBase*> solvers( 3 );
-	solvers[ 0 ] = new Solver6();
-	solvers[ 1 ] = new Solver7();
-	solvers[ 2 ] = new Solver9();
+	std::vector<SolverBase*> solvers;
+	solvers.push_back( new CpuSolver0() );
+	solvers.push_back( new CpuSolver1() );
+	//solvers.push_back( new Solver6() );
+	//solvers.push_back( new Solver7() );
+	//solvers.push_back( new Solver9() );
 	for( unsigned int i = 0; i < solvers.size(); ++i )
 	{
 		SolverBase& s = *solvers[ i ];
@@ -65,7 +71,7 @@ int main( int argc, char* argv[] )
 	std::vector<double> time( cases * solvers.size() );
 	std::vector<double> error( cases * solvers.size() );
 
-	unsigned int runs = 2;
+	unsigned int runs = 3;
 	
 	char filename[ 256 ];
 	for( unsigned int i = 0; i < runs; ++i )

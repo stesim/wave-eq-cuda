@@ -1,3 +1,5 @@
+/* Coalesced vectorized */
+
 #include "spdiamat.h"
 
 namespace CudaHelper7

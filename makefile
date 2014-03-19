@@ -15,12 +15,12 @@ BIN = $(notdir $(shell pwd))
 SRC = $(wildcard *.cpp)
 OBJ = $(SRC:%.cpp=%.cpp.o)
 CXXFLAGS = -std=c++11 -march=native -Wall -O3 $(CMD_N) $(CMD_n)
-LIBS = -L/opt/cuda/lib64 -lcudart
+LIBS = -pthread #-L/opt/cuda/lib64 -lcudart
 CXX = g++
 DEPENDFILE = .depend
 
 NVSRC = $(wildcard *.cu)
-NVOBJ = $(NVSRC:%.cu=%.cu.o)
+NVOBJ = #$(NVSRC:%.cu=%.cu.o)
 NVCCFLAGS = -I/opt/cuda/include -lcudart -arch=sm_21 -fmad=false -O3
 NVCC = nvcc
 
@@ -32,8 +32,8 @@ $(BIN): $(OBJ) $(NVOBJ)
 %.cpp.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-%.cu.o: %.cu
-	$(NVCC) $(NVCCFLAGS) -c $< -o $@
+#%.cu.o: %.cu
+#	$(NVCC) $(NVCCFLAGS) -c $< -o $@
 
 depend: 
 	rm -f $(DEPENDFILE)

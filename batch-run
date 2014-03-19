@@ -8,3 +8,9 @@ make force VAL_N=15 VAL_n=8
 make run
 make force VAL_N=16 VAL_n=8
 make run
+make force VAL_N=17 VAL_n=9
+make run
+make force VAL_N=18 VAL_n=9
+make run
+#make force VAL_N=20 VAL_n=10
+#make run

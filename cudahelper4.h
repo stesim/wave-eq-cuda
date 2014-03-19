@@ -1,3 +1,5 @@
+/* Shared matrices */
+
 #include "spdiamat.h"
 
 namespace CudaHelper4

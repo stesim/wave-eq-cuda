@@ -1,3 +1,5 @@
+/* Shared solution vectors */
+
 #include "spdiamat.h"
 
 namespace CudaHelper3

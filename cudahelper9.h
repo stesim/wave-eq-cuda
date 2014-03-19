@@ -1,3 +1,5 @@
+/* Coalesced vectorized + constant matrices */
+
 #include "spdiamat.h"
 
 namespace CudaHelper9

@@ -1,3 +1,5 @@
+/* Work on entire domain */
+
 #pragma once
 
 /*

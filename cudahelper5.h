@@ -1,3 +1,5 @@
+/* Vectorized standard */
+
 #include "spdiamat.h"
 
 namespace CudaHelper5
