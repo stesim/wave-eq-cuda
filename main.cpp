@@ -2,12 +2,15 @@
 #include "solverbase.h"
 #include "cpusolver0.h"
 #include "cpusolver1.h"
-//#include "solver6.h"
-//#include "solver7.h"
-//#include "solver9.h"
+#include "solver2.h"
+#include "solver6.h"
+#include "solver7.h"
+#include "solver9.h"
+#include "solver10.h"
 #include <chrono>
 #include <fstream>
 #include <vector>
+#include <cstring>
 
 double u0( double x )
 {
@@ -26,106 +29,119 @@ double sol( double x, double t )
 	return ( 1.0 / ( 1.0 + a * a ) + 1.0 / ( 1.0 + b * b ) ) / 2.0;
 }
 
+inline bool inputUInt( const char* str, unsigned int& val )
+{
+	val = atoi( str );
+	return ( val != 0 );
+}
+
+inline void printParams( const SolverBase& solver )
+{
+	std::cout << "Parameter overview:" << std::endl;
+	std::cout << "\tL:\t\t" << solver.L << std::endl;
+	std::cout << "\tT:\t\t" << solver.T << std::endl;
+	std::cout << "\tnp:\t\t" << solver.np << std::endl;
+	std::cout << "\tns:\t\t" << solver.ns << std::endl;
+	std::cout << "\tSolver:\t\t" << solver.getName() << std::endl;
+	std::cout << "\tThreads:\t" << solver.threads << std::endl;
+}
+
 int main( int argc, char* argv[] )
 {
-#ifdef VAL_N
-	unsigned int N = VAL_N;
-#else
-	unsigned int N = 14;
-#endif
-#ifdef VAL_n
-	unsigned int n = VAL_n;
-#else
-	unsigned int n = 7;
-#endif
 	double L = 150.0;
 	double T = 100.0;
 	
-	unsigned int threadsMin = 8;
-	unsigned int threadsMax = 8;
-	unsigned int cases = 0;
-	for( unsigned int i = threadsMin; i <= threadsMax; i <<= 1 )
+	unsigned int N;
+	unsigned int n;
+	unsigned int t;
+
+	if( argc != 5 )
 	{
-		++cases;
+		std::cout << "Wrong parameter count." << std::endl;
+		return EXIT_FAILURE;
 	}
 
-	std::vector<SolverBase*> solvers;
-	solvers.push_back( new CpuSolver0() );
-	solvers.push_back( new CpuSolver1() );
-	//solvers.push_back( new Solver6() );
-	//solvers.push_back( new Solver7() );
-	//solvers.push_back( new Solver9() );
-	for( unsigned int i = 0; i < solvers.size(); ++i )
+	SolverBase* s;
+	if( strcmp( argv[ 1 ], "cpu0" ) == 0 )
 	{
-		SolverBase& s = *solvers[ i ];
-		s.np = ( 1 << N );
-		s.ns = ( 1 << n );
-		s.L = L;
-		s.T = T;
-		s.u0 = u0;
-		s.u1 = u1;
-		s.sol = sol;
+		s = new CpuSolver0();
 	}
-		
-	std::vector<unsigned int> threads( cases * solvers.size() );
-	std::vector<double> time( cases * solvers.size() );
-	std::vector<double> error( cases * solvers.size() );
+	else if( strcmp( argv[ 1 ], "cpu1" ) == 0 )
+	{
+		s = new CpuSolver1();
+	}
+	else if( strcmp( argv[ 1 ], "gpu2" ) == 0 )
+	{
+		s = new Solver2();
+	}
+	else if( strcmp( argv[ 1 ], "gpu6" ) == 0 )
+	{
+		s = new Solver6();
+	}
+	else if( strcmp( argv[ 1 ], "gpu7" ) == 0 )
+	{
+		s = new Solver7();
+	}
+	else if( strcmp( argv[ 1 ], "gpu9" ) == 0 )
+	{
+		s = new Solver9();
+	}
+	else if( strcmp( argv[ 1 ], "gpu10" ) == 0 )
+	{
+		s = new Solver10();
+	}
+	else
+	{
+		std::cout << "Invalid solver name." << std::endl;
+		return EXIT_FAILURE;
+	}
 
-	unsigned int runs = 3;
+	if( !inputUInt( argv[ 2 ], N ) )
+	{
+		std::cout << "Invalid value for: N" << std::endl;
+		delete s;
+		return EXIT_FAILURE;
+	}
+	if( !inputUInt( argv[ 3 ], n ) )
+	{
+		std::cout << "Invalid value for: n" << std::endl;
+		delete s;
+		return EXIT_FAILURE;
+	}
+	t = atoi( argv[ 4 ] );
+
+	s->np = ( 1 << N );
+	s->ns = ( 1 << n );
+	s->L = L;
+	s->T = T;
+	s->u0 = u0;
+	s->u1 = u1;
+	s->sol = sol;
+	s->threads = ( 1 << t );
 	
+	printParams( *s );
+
+	auto start = std::chrono::high_resolution_clock::now();
+	s->solve();
+	auto elapsed = std::chrono::high_resolution_clock::now() - start;
+	double realTime = (double)elapsed.count()
+		* std::chrono::high_resolution_clock::period::num
+		/ std::chrono::high_resolution_clock::period::den;
+
+	std::cout << "Results:" << std::endl;
+	std::cout << "\tTime:\t\t" << realTime << 's' << std::endl;
+	std::cout << "\tError:\t\t" << s->error.back() << std::endl;
+
 	char filename[ 256 ];
-	for( unsigned int i = 0; i < runs; ++i )
-	{
-		for( unsigned int j = 0; j < solvers.size(); ++j )
-		{
-			SolverBase& s = *solvers[ j ];
-			std::cout << "solver: " << s.getName() << std::endl;
+	sprintf( filename, "%s-N%i-n%i-t%i.txt", s->getName(), N, n, t );
 
-			for( unsigned int k = 0; k < cases; ++k )
-			{
-				s.threads = ( threadsMin << k );
-				std::cout << "threads: " << s.threads << std::endl;
+	std::ofstream file( filename );
+	file << "Solver N n L T t Error Time" << std::endl;
+	file << s->getName() << N << ' ' << n << ' ' << L << ' ' << T
+		<< t << s->error.back() << realTime << std::endl;
+	file.close();
 
-				auto start = std::chrono::high_resolution_clock::now();
-				s.solve();
-				auto elapsed = std::chrono::high_resolution_clock::now() - start;
-				double realTime = (double)elapsed.count()
-					* std::chrono::high_resolution_clock::period::num
-					/ std::chrono::high_resolution_clock::period::den;
-				std::cout << "time: " << realTime << 's' << std::endl;
-				std::cout << "error: " << s.error.back() << std::endl;
-				std::cout << std::endl;
-
-				unsigned int resIdx = j * cases + k;
-				threads[ resIdx ] = s.threads;
-				time[ resIdx ] = realTime;
-				error[ resIdx ] = s.error.back();
-			}
-		}
-
-		sprintf( filename, "results-N%i-n%i-run%i.txt", N, n, i );
-		std::ofstream file( filename );
-		file << "N n L T" << std::endl;
-		file << N << ' ' << n << ' ' << L << ' ' << T << std::endl;
-		file << std::endl;
-		file << "solver threads time error" << std::endl;
-		for( unsigned int j = 0; j < solvers.size(); ++j )
-		{
-			for( unsigned int k = 0; k < cases; ++k )
-			{
-				unsigned int idx = j * cases + k;
-				file << solvers[ j ]->getName() << ' ' << threads[ idx ] << ' '
-					<< time[ idx ] << ' ' << error[ idx ] << std::endl;
-
-			}
-		}
-		file.close();
-	}
-
-	for( unsigned int i = 0; i < solvers.size(); ++i )
-	{
-		delete solvers[ i ];
-	}
+	delete s;
 
 	return 0;
 }

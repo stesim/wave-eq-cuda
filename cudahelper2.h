@@ -6,13 +6,13 @@ namespace CudaHelper2
 {
 
 __device__
-inline void mulMatVec( const SpDiaMat* mat, const double* v, double* res )
+inline void mulMatVec( const SpDiaMat* mat, const real* v, real* res )
 {
 	for( unsigned int i = 0; i < mat->n; ++i )
 	{
 		res[ i ] = 0.0;
 	}
-	const double* curDiagValues = mat->values;
+	real* curDiagValues = mat->values;
 	for( unsigned int k = 0; k < mat->diags; ++k )
 	{
 		int offset = mat->offsets[ k ];
@@ -29,9 +29,9 @@ inline void mulMatVec( const SpDiaMat* mat, const double* v, double* res )
 __device__
 inline void addVecScaledVec(
 		unsigned int ip,
-		double* a,
-		double s,
-		const double* b )
+		real* a,
+		real s,
+		const real* b )
 {
 	for( unsigned int i = 0; i < ip; ++i )
 	{
@@ -42,11 +42,11 @@ inline void addVecScaledVec(
 __device__
 inline void addScaledVecs(
 		unsigned int ip,
-		double s,
-		const double* a,
-		double t,
-		const double* b,
-		double* c )
+		real s,
+		const real* a,
+		real t,
+		const real* b,
+		real* c )
 {
 	for( unsigned int i = 0; i < ip; ++i )
 	{
@@ -56,21 +56,21 @@ inline void addScaledVecs(
 
 __global__
 void calculateFirstStep(
-		double dt,
-		double h,
+		real dt,
+		real h,
 		unsigned int ip,
 		SpDiaMat matInner,
 		SpDiaMat matLeft,
 		SpDiaMat matRight,
-		const double* F,
-		const double* G,
-		double* Z )
+		const real* F,
+		const real* G,
+		real* Z )
 {
 	unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int idLast = gridDim.x * blockDim.x - 2;
-	const double* f = &F[ id * ip ];
-	const double* g = &G[ id * ip ];
-	double* z = &Z[ id * ip ];
+	const real* f = &F[ id * ip ];
+	const real* g = &G[ id * ip ];
+	real* z = &Z[ id * ip ];
 
 	SpDiaMat* mat;
 	if( id == 0 )
@@ -94,14 +94,14 @@ void calculateFirstStep(
 __global__
 void calculateNSteps(
 		unsigned int nsteps,
-		double a,
+		real a,
 		unsigned int ip,
 		SpDiaMat matInner,
 		SpDiaMat matLeft,
 		SpDiaMat matRight,
-		double* Z,
-		double* W,
-		double* U )
+		real* Z,
+		real* W,
+		real* U )
 {
 	unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int idLast = gridDim.x * blockDim.x - 2;
@@ -120,11 +120,11 @@ void calculateNSteps(
 		mat = &matInner;
 	}
 
-	double* z = &Z[ id * ip ];
-	double* w = &W[ id * ip ];
-	double* u = &U[ id * ip ];
+	real* z = &Z[ id * ip ];
+	real* w = &W[ id * ip ];
+	real* u = &U[ id * ip ];
 
-	double* swap;
+	real* swap;
 	for( unsigned int i = 0; i < nsteps; ++i )
 	{
 		mulMatVec( mat, z, u );
@@ -139,17 +139,17 @@ void calculateNSteps(
 }
 
 __global__
-void synchronizeResults( unsigned int ip, double* Z, double* W )
+void synchronizeResults( unsigned int ip, real* Z, real* W )
 {
 	unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int idLast = gridDim.x * blockDim.x - 2;
-	double* z = &Z[ id * ip ];
-	double* w = &W[ id * ip ];
+	real* z = &Z[ id * ip ];
+	real* w = &W[ id * ip ];
 	
-	const unsigned int copySize = ip / 4 * sizeof( double );
+	const unsigned int copySize = ip / 4 * sizeof( real );
 
-	double* nz;
-	double* nw;
+	real* nz;
+	real* nw;
 	if( id > 0 )
 	{
 		nz = &Z[ ( id - 1 ) * ip ];

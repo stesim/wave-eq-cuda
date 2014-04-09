@@ -1,11 +1,11 @@
 #pragma once
 
-#ifndef real
 #ifdef REAL_FLOAT
-typedef float real;
+#define real float
+#define real2 float2
 #else
-typedef double real;
-#endif
+#define real double
+#define real2 double2
 #endif
 
 struct SpDiaMat

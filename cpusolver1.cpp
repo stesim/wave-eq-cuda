@@ -3,8 +3,6 @@
 #include <cmath>
 #include <cstring>
 
-#include <iostream>
-
 thread_local unsigned int CpuSolver1::threadId;
 
 CpuSolver1::CpuSolver1()

@@ -1,8 +1,9 @@
 #pragma once
 
+#include "solverbase.h"
 #include <vector>
 
-class Solver
+class Solver : public SolverBase
 {
 public:
 	Solver();
@@ -10,13 +11,15 @@ public:
 
 	void solve();
 
+	virtual const char* getName() const;
+
 private:
 	static void generateFDMatrix(
 			double l2,
 			unsigned int ip,
 			std::vector<int>& offsets,
 			std::vector<double>& values );
-
+/*
 public:
 	unsigned int threads;
 	unsigned int np;
@@ -29,4 +32,5 @@ public:
 
 	std::vector<double> solution;
 	std::vector<double> error;
+*/
 };

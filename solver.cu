@@ -14,6 +14,9 @@ Solver::~Solver()
 
 void Solver::solve()
 {
+
+	cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 );
+	
 	unsigned int ip = np;
 	double h = 2 * L / ( np - 1 );
 	double dt = h / 4.0;
@@ -138,4 +141,9 @@ void Solver::generateFDMatrix(
 	values = std::vector<double>( 2 * ( ip - 1 ), l2 );
 	values[ 0 ] = 2.0 * l2;
 	values[ values.size() - 1 ] = 2.0 * l2;
+}
+
+const char* Solver::getName() const
+{
+	return "Solver";
 }

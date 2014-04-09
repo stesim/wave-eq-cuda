@@ -1,57 +1,80 @@
-ifdef VAL_N
-	CMD_N = -DVAL_N=$(VAL_N)
-else
-	CMD_N =
-endif
+CUDA_INSTALL_PATH       ?= /opt/cuda
+CUDA_SDK_INSTALL_PATH   ?= $(HOME)/NVIDIA_GPU_Computing_SDK
 
-ifdef VAL_n
-	CMD_n = -DVAL_n=$(VAL_n)
-else
-	CMD_n =
-endif
+BIN						 = wave-eq-cuda
+CXX						 = g++
+SRC						 = $(wildcard *.cpp)
+OBJ						 = $(SRC:%.cpp=%.o)
+CXXFLAGS				 = -std=c++11 -march=native -O3
+LIBS					 = -L$(CUDA_INSTALL_PATH)/lib64 -pthread -lcudart -lm
+CXXDEPENDFILE			 = .cpp-depend
 
-BIN = $(notdir $(shell pwd))
-#SRC = main.cpp
-SRC = $(wildcard *.cpp)
-OBJ = $(SRC:%.cpp=%.cpp.o)
-CXXFLAGS = -std=c++11 -march=native -Wall -O3 $(CMD_N) $(CMD_n)
-LIBS = -pthread #-L/opt/cuda/lib64 -lcudart
-CXX = g++
-DEPENDFILE = .depend
+NVCC                    := $(CUDA_INSTALL_PATH)/bin/nvcc
+NVSRC					 = $(wildcard *.cu)
+NVOBJ					 = $(NVSRC:%.cu=%.o)
+INCLUDES                 = -I$(CUDA_INSTALL_PATH)/include 
+NVCCFLAGS				 = $(INCLUDES) -arch=sm_20 --ptxas-options=-v
+NVDEPENDFILE			 = .cu-depend
 
-NVSRC = $(wildcard *.cu)
-NVOBJ = #$(NVSRC:%.cu=%.cu.o)
-NVCCFLAGS = -I/opt/cuda/include -lcudart -arch=sm_21 -fmad=false -O3
-NVCC = nvcc
+all: $(BIN)
 
-all: depend $(BIN)
+$(BIN): depend $(OBJ) $(NVOBJ)
+	$(CXX) -o $@ $(OBJ) $(NVOBJ) $(LIBS)
+	@echo " "
+	@echo " "
+	@echo "--------------------------------------------------------------------------------"
+	@echo "> successfully built $(BIN)."
+	@echo "--------------------------------------------------------------------------------"
 
-$(BIN): $(OBJ) $(NVOBJ)
-	$(CXX) $(CXXFLAGS) -o $(BIN) $(OBJ) $(NVOBJ) $(LIBS)
-
-%.cpp.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-#%.cu.o: %.cu
-#	$(NVCC) $(NVCCFLAGS) -c $< -o $@
+$(OBJ): %.o : %.cpp
+	@echo "--------------------------------------------------------------------------------"
+	@echo "> compiling $<"
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+	@echo "> done." 
+	@echo "--------------------------------------------------------------------------------"
+	@echo " "
+	@echo " "
+	
+$(NVOBJ): %.o : %.cu
+	@echo "--------------------------------------------------------------------------------"
+	@echo "> compiling $<"
+	$(NVCC) $(NVCCFLAGS) -o $@ -c $<
+	@echo "> done." 
+	@echo "--------------------------------------------------------------------------------"
+	@echo " "
+	@echo " "
 
 depend: 
-	rm -f $(DEPENDFILE)
-	$(CXX) $(CXXFLAGS) -MM $(SRC) > $(DEPENDFILE)
+	@echo "--------------------------------------------------------------------------------"
+	@echo "> generating dependency files"
+	@rm -f $(CXXDEPENDFILE) $(NVDEPENDFILE)
+	@$(CXX) $(CXXFLAGS) -MM $(SRC) > $(CXXDEPENDFILE)
+	@$(NVCC) $(NVCCFLAGS) -M $(NVSRC) > $(NVDEPENDFILE)
+	@echo "> done." 
+	@echo "--------------------------------------------------------------------------------"
+	@echo " "
+	@echo " "
 
--include $(DEPENDFILE)
+-include $(CXXDEPENDFILE)
 
-clean:
-	rm -rf $(BIN) $(OBJ) $(NVOBJ)
-
-force:
-	make clean
-	make
+-include $(NVDEPENDFILE)
 
 run: $(BIN)
+	@echo "--------------------------------------------------------------------------------"
+	@echo "> running $(BIN)"
+	@echo "--------------------------------------------------------------------------------"
 	./$(BIN)
+	@echo "--------------------------------------------------------------------------------"
+	
+clean:
+	@echo "--------------------------------------------------------------------------------"
+	@echo "> cleaning up"
+	@echo "--------------------------------------------------------------------------------"
+	@rm -f $(OBJ) $(NVOBJ) $(CXXDEPENDFILE) $(NVDEPENDFILE) $(BIN)
 
-optirun: $(BIN)
-	optirun ./$(BIN)
+.PHONY: depend run clean
+#--opencc-options -OPT:Olimit=0 
+################################################################################
+#	End of File 
+################################################################################
 
-.PHONY: all depend clean

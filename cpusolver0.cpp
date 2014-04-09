@@ -2,8 +2,6 @@
 #include "cpuhelper.h"
 #include <cmath>
 
-#include <iostream>
-
 CpuSolver0::CpuSolver0()
 {
 }
@@ -44,7 +42,6 @@ void CpuSolver0::solve()
 	real* pz = z.data();
 	real* pw = w.data();
 	real* pu = u.data();
-	std::cout << kmax << std::endl;
 	for( unsigned int k = 0; k < kmax; ++k )
 	{
 		calculateNSteps( np, pz, pw, pu, mat, l2, nsteps );
