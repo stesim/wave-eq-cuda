@@ -2,11 +2,13 @@
 #include "solverbase.h"
 #include "cpusolver0.h"
 #include "cpusolver1.h"
+#include "cpusolver2.h"
 #include "solver2.h"
 #include "solver6.h"
 #include "solver7.h"
 #include "solver9.h"
 #include "solver10.h"
+#include "solver11.h"
 #include <chrono>
 #include <fstream>
 #include <vector>
@@ -70,6 +72,10 @@ int main( int argc, char* argv[] )
 	{
 		s = new CpuSolver1();
 	}
+	else if( strcmp( argv[ 1 ], "cpu2" ) == 0 )
+	{
+		s = new CpuSolver2();
+	}
 	else if( strcmp( argv[ 1 ], "gpu2" ) == 0 )
 	{
 		s = new Solver2();
@@ -89,6 +95,10 @@ int main( int argc, char* argv[] )
 	else if( strcmp( argv[ 1 ], "gpu10" ) == 0 )
 	{
 		s = new Solver10();
+	}
+	else if( strcmp( argv[ 1 ], "gpu11" ) == 0 )
+	{
+		s = new Solver11();
 	}
 	else
 	{
@@ -137,8 +147,8 @@ int main( int argc, char* argv[] )
 
 	std::ofstream file( filename );
 	file << "Solver N n L T t Error Time" << std::endl;
-	file << s->getName() << N << ' ' << n << ' ' << L << ' ' << T
-		<< t << s->error.back() << realTime << std::endl;
+	file << s->getName() << ' ' << N << ' ' << n << ' ' << L << ' ' << T
+		<< ' ' << t << ' ' << s->error.back() << ' ' << realTime << std::endl;
 	file.close();
 
 	delete s;

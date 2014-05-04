@@ -1,4 +1,23 @@
 #!/bin/bash
 
-./wave-eq-cuda cpu1 16 10 3
-./wave-eq-cuda gpu10 16 10 6
+date +%X
+./wave-eq-cuda gpu11 14 10 3
+date +%X
+./wave-eq-cuda gpu11 15 10 3
+date +%X
+./wave-eq-cuda gpu11 16 10 3
+date +%X
+./wave-eq-cuda gpu11 17 10 3
+date +%X
+./wave-eq-cuda gpu11 18 10 3
+date +%X
+./wave-eq-cuda gpu11 19 10 3
+date +%X
+./wave-eq-cuda gpu11 20 10 3
+date +%X
+./wave-eq-cuda gpu11 21 10 3
+date +%X
+#./wave-eq-cuda gpu11 22 12 3
+#date +%X
+#./wave-eq-cuda gpu11 23 13 3
+#date +%X
