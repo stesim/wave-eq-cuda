@@ -23,7 +23,7 @@ void Solver10::solve()
 	real dt = h / 4.0;
 	real l = dt / h;
 	real l2 = l * l;
-	unsigned int nsteps = ip / 2;
+	unsigned int nsteps = ip / 4;
 	unsigned int ndom = 2 * ns - 1;
 	unsigned int gpudom = 2 * ns;
 	unsigned int blocks = gpudom / threads;

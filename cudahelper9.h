@@ -5,7 +5,7 @@
 namespace CudaHelper9
 {
 
-static const unsigned int CONST_BUFFER_SIZE = 32768;
+static const unsigned int CONST_BUFFER_SIZE = 65536;
 //static const unsigned int CONST_BUFFER_SIZE = 8192;
 __constant__ char constBuffer[ CONST_BUFFER_SIZE ];
 

@@ -22,7 +22,7 @@ void CpuSolver2::solve()
 	real dt = h / 4.0;
 	real l = dt / h;
 	real l2 = l * l;
-	unsigned int nsteps = ip / 2;
+	unsigned int nsteps = ip / 4;
 	unsigned int kmax = ceil( T / ( nsteps * dt ) );
 	error = std::vector<real>( kmax );
 

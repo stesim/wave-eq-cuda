@@ -40,7 +40,7 @@ void Solver11::solve()
 	real dt = h / 4.0;
 	real l = dt / h;
 	real l2 = l * l;
-	unsigned int nsteps = ip / 2;
+	unsigned int nsteps = ip / 4;
 	unsigned int ndom = 2 * ns - 1;
 	unsigned int gpudom = 2 * ns;
 
@@ -55,10 +55,12 @@ void Solver11::solve()
 	solution = std::vector<double>( np );
 	error = std::vector<double>( kmax );
 
-	std::vector<real> z( gpudom * ip );
-	std::vector<real> w( gpudom * ip );
-
 	unsigned int bufSize = gpudom * ip * sizeof( real );
+
+	real* z;
+	real* w;
+	cudaMallocHost( &z, bufSize );
+	cudaMallocHost( &w, bufSize );
 
 	real2* d_z;
 	real2* d_w;
@@ -80,8 +82,8 @@ void Solver11::solve()
 		memcpy( &z[ n * ip ], &g[ n * ip / 2 ], ip * sizeof( real ) );
 	}
 
-	cudaMemcpy( d_w, w.data(), bufSize, cudaMemcpyHostToDevice );
-	cudaMemcpy( d_z, z.data(), bufSize, cudaMemcpyHostToDevice );
+	cudaMemcpy( d_w, w, bufSize, cudaMemcpyHostToDevice );
+	cudaMemcpy( d_z, z, bufSize, cudaMemcpyHostToDevice );
 
 	f.clear();
 	g.clear();
@@ -106,16 +108,19 @@ void Solver11::solve()
 
 		if( k > 0 )
 		{
-			calculateError( z.data(), k - 1, ip, nsteps, dt, h, x.data() );
+			calculateError( (real*)z, k - 1, ip, nsteps, dt, h, x.data() );
 		}
 
-		cudaMemcpy( z.data(), d_z, bufSize, cudaMemcpyDeviceToHost );
+		cudaMemcpy( z, d_z, bufSize, cudaMemcpyDeviceToHost );
 	}
 
-	calculateError( z.data(), kmax - 1, ip, nsteps, dt, h, x.data() );
+	calculateError( (real*)z, kmax - 1, ip, nsteps, dt, h, x.data() );
 
 	cudaFree( d_z );
 	cudaFree( d_w );
+
+	cudaFreeHost( z );
+	cudaFreeHost( w );
 }
 
 const char* Solver11::getName() const

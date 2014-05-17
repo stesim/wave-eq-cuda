@@ -22,7 +22,7 @@ void Solver::solve()
 	double dt = h / 4.0;
 	double l = dt / h;
 	double l2 = l * l;
-	unsigned int nsteps = np / ns / 2;
+	unsigned int nsteps = np / ns / 4;
 
 	std::vector<double> z( np );
 	std::vector<double> w( np );
