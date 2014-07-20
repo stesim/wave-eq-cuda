@@ -1,5 +1,7 @@
 #pragma once
 
+//#define REAL_FLOAT
+
 #ifdef REAL_FLOAT
 #define real float
 #define real2 float2

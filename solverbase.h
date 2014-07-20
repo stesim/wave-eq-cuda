@@ -19,6 +19,8 @@ public:
 	double (*u0)( double );
 	double (*u1)( double );
 	double (*sol)( double, double );
+	double nc;
+	double dc;
 
 	std::vector<double> solution;
 	std::vector<double> error;

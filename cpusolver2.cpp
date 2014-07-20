@@ -14,6 +14,7 @@ CpuSolver2::~CpuSolver2()
 }
 
 
+// CpuSolver2 is identical to CpuSolver1 except for the threadLoop method
 void CpuSolver2::solve()
 {
 	unsigned int ip = np / ns;
@@ -24,7 +25,8 @@ void CpuSolver2::solve()
 	real l2 = l * l;
 	unsigned int nsteps = ip / 4;
 	unsigned int kmax = ceil( T / ( nsteps * dt ) );
-	error = std::vector<real>( kmax );
+	//unsigned int kmax = static_cast<unsigned int>( T ) / nsteps;
+	error = std::vector<double>( kmax );
 
 	std::vector<real> x( np );
 	std::vector<real> f( np );
@@ -56,11 +58,14 @@ void CpuSolver2::solve()
 		memcpy( pu[ i ], &g[ i * ip / 2 ], ip * sizeof( real ) );
 	}
 
-	runThreadPool( true, ndom, ip, pz, pw, pu, dt, l2, nsteps );
+	real a = 1.0 - l2 - dc;
+	real b = nc * dt * dt;
+	runThreadPool( true, ndom, ip, pz, pw, pu, dt, l2, a, b, nsteps );
 
+	a = 2.0 * ( 1.0 - l2 ) - dc;
 	for( unsigned int k = 0; k < kmax; ++k )
 	{
-		runThreadPool( false, ndom, ip, pz, pw, pu, dt, l2, nsteps );
+		runThreadPool( false, ndom, ip, pz, pw, pu, dt, l2, a, b, nsteps );
 
 		memcpy( &pz[ 0 ][ ip * 3 / 4 ], &pz[ 1 ][ ip / 4 ],
 				ip / 4 * sizeof( real ) );
@@ -96,7 +101,7 @@ void CpuSolver2::solve()
 		error[ k ] = sqrt( h * err );
 	}
 
-	solution = std::vector<real>( np );
+	solution = std::vector<double>( np );
 	for( unsigned int i = 0; i < ndom; i += 2 )
 	{
 		for( unsigned int j = 0; j < ip; ++j )
@@ -120,10 +125,10 @@ void CpuSolver2::threadLoop(
 		std::vector<real*>& pu,
 		real dt,
 		real l2,
+		real a,
+		real b,
 		unsigned int nsteps )
 {
-	real a = ( firstStep ? 1.0 - l2 : 2.0 * ( 1.0 - l2 ) );
-
 	while( true )
 	{
 		m_Mutex.lock();
@@ -141,15 +146,22 @@ void CpuSolver2::threadLoop(
 			real* f = pw[ threadId ];
 			real* g = pu[ threadId ];
 
+			// calculate first step
+			real f3 = f[ 0 ];
+			f3 *= f3 * f3;
 			z[ 0 ] = ( threadId == 0 ? 2.0 * l2 : l2 ) * 0.5 * f[ 1 ] +
-				a * f[ 0 ] + dt * g[ 0 ];
+				a * f[ 0 ] + dt * g[ 0 ] + b * f3;
 			for( unsigned int i = 1; i < ip - 1; ++i )
 			{
+				f3 = f[ i ];
+				f3 *= f3 * f3;
 				z[ i ] = l2 * 0.5 * ( f[ i - 1 ] + f[ i + 1 ] ) + a * f[ i ] +
-					dt * g[ i ];
+					dt * g[ i ] + b * f3;
 			}
+			f3 = f[ ip - 1 ];
+			f3 *= f3 * f3;
 			z[ ip - 1 ] = ( threadId == ndom - 1 ? 2.0 * l2 : l2 ) *
-				0.5 * f[ ip - 2 ] + a * f[ ip - 1 ] + dt * g[ ip - 1 ];
+				0.5 * f[ ip - 2 ] + a * f[ ip - 1 ] + dt * g[ ip - 1 ] + b * f3;
 		}
 		else
 		{
@@ -157,17 +169,24 @@ void CpuSolver2::threadLoop(
 			real*& w = pw[ threadId ];
 			real*& u = pu[ threadId ];
 
+			// calculate 'nsteps' time steps
 			for( unsigned int n = 0; n < nsteps; ++n )
 			{
+				real z3 = z[ 0 ];
+				z3 *= z3 * z3;
 				u[ 0 ] = ( threadId == 0 ? 2.0 * l2 : l2 ) * z[ 1 ] +
-					a * z[ 0 ] - w[ 0 ];
+					a * z[ 0 ] - w[ 0 ] + b * z3;
 				for( unsigned int i = 1; i < ip - 1; ++i )
 				{
+					z3 = z[ i ];
+					z3 *= z3 * z3;
 					u[ i ] = l2 * ( z[ i - 1 ] + z[ i + 1 ] ) +
-						a * z[ i ] - w[ i ];
+						a * z[ i ] - w[ i ] + b * z3;
 				}
+				z3 = z[ ip - 1 ];
+				z3 *= z3 * z3;
 				u[ ip - 1 ] = ( threadId == ndom - 1 ? 2.0 * l2 : l2 ) *
-					z[ ip - 2 ] + a * z[ ip - 1 ] - w[ ip - 1 ];
+					z[ ip - 2 ] + a * z[ ip - 1 ] - w[ ip - 1 ] + b * z3;
 
 				real* swap = w;
 				w = z;
@@ -187,6 +206,8 @@ void CpuSolver2::runThreadPool(
 		std::vector<real*>& pu,
 		real dt,
 		real l2,
+		real a,
+		real b,
 		unsigned int nsteps )
 {
 	std::vector<std::thread> vecThreads( threads );
@@ -195,7 +216,7 @@ void CpuSolver2::runThreadPool(
 	{
 		vecThreads[ i ] = std::thread( &CpuSolver2::threadLoop, this,
 				firstStep, ndom, ip, std::ref( pz ), std::ref( pw ),
-				std::ref( pu ), dt, l2, nsteps );
+				std::ref( pu ), dt, l2, a, b, nsteps );
 	}
 	for( unsigned int i = 0; i < threads; ++i )
 	{

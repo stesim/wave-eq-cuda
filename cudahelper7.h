@@ -1,14 +1,12 @@
-/* Coalesced vectorized */
-
 #include "spdiamat.h"
 
 namespace CudaHelper7
 {
 
-//extern __shared__ double2 sharedBuffer[];
-
+// sparse matrix-vector multiplication function for the SpDiaMat structure
 __device__
-inline void mulMatVec( unsigned int stride, const SpDiaMat* mat, const double2* v, double2* res )
+inline void mulMatVec( unsigned int stride, const SpDiaMat* mat,
+		const double2* v, double2* res )
 {
 	for( unsigned int i = 0; i < mat->n / 2; ++i )
 	{
@@ -34,40 +32,10 @@ inline void mulMatVec( unsigned int stride, const SpDiaMat* mat, const double2* 
 	}
 }
 
+// vector copy helper function
 __device__
-inline void addVecScaledVec(
-		unsigned int stride,
-		unsigned int ip,
-		double2* a,
-		double s,
-		const double2* b )
-{
-	for( unsigned int i = 0; i < ip / 2; ++i )
-	{
-		a[ i * stride ].x += s * b[ i * stride ].x;
-		a[ i * stride ].y += s * b[ i * stride ].y;
-	}
-}
-
-__device__
-inline void addScaledVecs(
-		unsigned int stride,
-		unsigned int ip,
-		double s,
-		const double2* a,
-		double t,
-		const double2* b,
-		double2* c )
-{
-	for( unsigned int i = 0; i < ip / 2; ++i )
-	{
-		c[ i * stride ].x = s * a[ i * stride ].x + t * b[ i * stride ].x;
-		c[ i * stride ].y = s * a[ i * stride ].y + t * b[ i * stride ].y;
-	}
-}
-
-__device__
-inline void memcpy_vec( unsigned int stride, double2* dst, const double2* src, unsigned int size )
+inline void memcpy_vec( unsigned int stride, double2* dst, const double2* src,
+		unsigned int size )
 {
 	for( unsigned int i = 0; i < size; ++i )
 	{
@@ -76,25 +44,22 @@ inline void memcpy_vec( unsigned int stride, double2* dst, const double2* src, u
 	}
 }
 
+// calculate the first time step of the simulation
 __global__
-void calculateFirstStep(
-		double dt,
-		double h,
-		unsigned int ip,
-		SpDiaMat matInner,
-		SpDiaMat matLeft,
-		SpDiaMat matRight,
-		const double2* F,
-		const double2* G,
-		double2* Z )
+void calculateFirstStep( double dt, double h, double a, double b,
+		unsigned int ip, SpDiaMat matInner, SpDiaMat matLeft, SpDiaMat matRight,
+		const double2* F, const double2* G, double2* Z )
 {
+	// calculate current subdomain's position in memory
 	unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int idLast = gridDim.x * blockDim.x - 2;
 	unsigned int vecIdx = blockIdx.x * blockDim.x * ip / 2 + threadIdx.x;
+
 	const double2* f = &F[ vecIdx ];
 	const double2* g = &G[ vecIdx ];
 	double2* z = &Z[ vecIdx ];
 
+	// select right matrix depending on the subdomain's position
 	SpDiaMat* mat;
 	if( id == 0 )
 	{
@@ -109,31 +74,32 @@ void calculateFirstStep(
 		mat = &matInner;
 	}
 
+	// calculate first step
 	mulMatVec( blockDim.x, mat, f, z );
-	addScaledVecs( blockDim.x, ip, 0.5, z, ( 1.0 - dt / h * dt / h ), f, z );
-	addScaledVecs( blockDim.x, ip, 1.0, z, dt, g, z );
-	//addVecScaledVec( blockDim.x, ip, z, dt, g );
+	for( unsigned int i = 0; i < ip / 2; ++i )
+	{
+		unsigned int idx = i * blockDim.x;
+		double f3 = f[ idx ].x;
+		f3 *= f3 * f3;
+		z[ idx ].x = 0.5 * z[ idx ].x + a * f[ idx ].x + dt * g[ idx ].x + b * f3;
+		f3 = f[ idx ].y;
+		f3 *= f3 * f3;
+		z[ idx ].y = 0.5 * z[ idx ].y + a * f[ idx ].y + dt * g[ idx ].y + b * f3;
+	}
 }
 
+// calculate a full cycle before rejoining the solutions - basically the same as
+// calculating the first step except for a loop over the number of steps
 __global__
-void calculateNSteps(
-		unsigned int nsteps,
-		double a,
-		unsigned int ip,
-		SpDiaMat matInner,
-		SpDiaMat matLeft,
-		SpDiaMat matRight,
-		double2* Z,
-		double2* W,
-		double2* U )
+void calculateNSteps( unsigned int nsteps, double a, double b, unsigned int ip,
+		SpDiaMat matInner, SpDiaMat matLeft, SpDiaMat matRight,
+		double2* Z, double2* W, double2* U )
 {
 	unsigned int id = blockIdx.x * blockDim.x + threadIdx.x;
 	unsigned int idLast = gridDim.x * blockDim.x - 2;
 	unsigned int vecIdx = blockIdx.x * blockDim.x * ip / 2 + threadIdx.x;
 
 	double2* z = &Z[ vecIdx ];
-	//double2* z = &sharedBuffer[ threadIdx.x ];
-	//memcpy_vec( blockDim.x, z, &Z[ vecIdx ], ip / 2 );
 	double2* w = &W[ vecIdx ];
 	double2* u = &U[ vecIdx ];
 
@@ -155,19 +121,27 @@ void calculateNSteps(
 	for( unsigned int i = 0; i < nsteps; ++i )
 	{
 		mulMatVec( blockDim.x, mat, z, u );
-		addScaledVecs( blockDim.x, ip, 1.0, u, a, z, u );
-		addScaledVecs( blockDim.x, ip, 1.0, u, -1.0, w, u );
-		//addVecScaledVec( blockDim.x, ip, u, a, z );
-		//addVecScaledVec( blockDim.x, ip, u, -1.0, w );
+		for( unsigned int i = 0; i < ip / 2; ++i )
+		{
+			unsigned int idx = i * blockDim.x;
+			double z3 = z[ idx ].x;
+			z3 *= z3 * z3;
+			u[ idx ].x += a * z[ idx ].x - w[ idx ].x + b * z3;
+			z3 = z[ idx ].y;
+			z3 *= z3 * z3;
+			u[ idx ].y += a * z[ idx ].y - w[ idx ].y + b * z3;
+		}
 
+		// swap vector pointers to avoid copy operations
 		swap = w;
 		w = z;
 		z = u;
 		u = swap;
 	}
-	//memcpy_vec( blockDim.x, &Z[ vecIdx ], z, ip / 2 );
 }
 
+// replace invalid values with the correct ones by copying them from the
+// neighboring subdomains
 __global__
 void synchronizeResults( unsigned int ip, double2* Z, double2* W )
 {

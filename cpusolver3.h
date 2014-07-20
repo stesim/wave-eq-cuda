@@ -4,11 +4,11 @@
 #include <vector>
 #include "spdiamat.h"
 
-class CpuSolver0 : public SolverBase
+class CpuSolver3 : public SolverBase
 {
 public:
-	CpuSolver0();
-	virtual ~CpuSolver0();
+	CpuSolver3();
+	virtual ~CpuSolver3();
 
 	virtual void solve();
 
@@ -20,8 +20,8 @@ protected:
 			real* z,
 			const real* f,
 			const real* g,
-			const SpDiaMat& mat,
 			real dt,
+			real l2,
 			real a,
 			real b );
 
@@ -30,11 +30,8 @@ protected:
 			real*& z,
 			real*& w,
 			real*& u,
-			const SpDiaMat& mat,
+			real l2,
 			real a,
 			real b,
 			unsigned int nsteps );
-
-private:
-	static SpDiaMat allocFDMatrix( real l2, unsigned int ip );
 };

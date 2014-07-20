@@ -2,6 +2,7 @@
 
 #include "spdiamat.h"
 
+// matrix / vector helper functions
 class CpuHelper
 {
 public:
@@ -43,32 +44,6 @@ public:
 					curDiagValues[ i ] * v[ i + vIdx ];
 			}
 			curDiagValues += diagSize;
-		}
-	}
-
-	inline static void addVecScaledVec(
-			unsigned int ip,
-			real* a,
-			real s,
-			const real* b )
-	{
-		for( unsigned int i = 0; i < ip; ++i )
-		{
-			a[ i ] += s * b[ i ];
-		}
-	}
-
-	inline static void addScaledVecs(
-			unsigned int ip,
-			real s,
-			const real* a,
-			real t,
-			const real* b,
-			real* c )
-	{
-		for( unsigned int i = 0; i < ip; ++i )
-		{
-			c[ i ] = s * a[ i ] + t * b[ i ];
 		}
 	}
 };

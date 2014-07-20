@@ -13,6 +13,8 @@ CpuSolver0::~CpuSolver0()
 
 void CpuSolver0::solve()
 {
+	// for detailed explanation of the solve method see Solver11::solve
+
 	unsigned int ip = np / ns;
 	real h = 2 * L / ( np - 1 );
 	real dt = h / 4.0;
@@ -20,7 +22,8 @@ void CpuSolver0::solve()
 	real l2 = l * l;
 	unsigned int nsteps = ip / 4;
 	unsigned int kmax = ceil( T / ( nsteps * dt ) );
-	error = std::vector<real>( kmax );
+	//unsigned int kmax = static_cast<unsigned int>( T ) / nsteps;
+	error = std::vector<double>( kmax );
 
 	std::vector<real> x( np );
 	std::vector<real> z( np );
@@ -37,14 +40,18 @@ void CpuSolver0::solve()
 
 	SpDiaMat mat = allocFDMatrix( l2, np );
 
-	calculateFirstStep( np, z.data(), w.data(), u.data(), mat, dt, l2 );
+	real a = 1.0 - l2 - dc;
+	real b = nc * dt * dt;
+	calculateFirstStep( np, z.data(), w.data(), u.data(), mat, dt, a, b );
+
+	a = 2.0 * ( 1.0 - l2 ) - dc;
 
 	real* pz = z.data();
 	real* pw = w.data();
 	real* pu = u.data();
 	for( unsigned int k = 0; k < kmax; ++k )
 	{
-		calculateNSteps( np, pz, pw, pu, mat, l2, nsteps );
+		calculateNSteps( np, pz, pw, pu, mat, a, b, nsteps );
 
 		double t = ( ( k + 1 ) * nsteps + 1 ) * dt;
 		double err = 0.0;
@@ -56,7 +63,7 @@ void CpuSolver0::solve()
 		error[ k ] = sqrt( h * err );
 	}
 
-	solution = std::vector<real>( np );
+	solution = std::vector<double>( np );
 	for( unsigned int i = 0; i < np; ++i )
 	{
 		solution[ i ] = pz[ i ];
@@ -69,35 +76,31 @@ const char* CpuSolver0::getName() const
 }
 
 void CpuSolver0::calculateFirstStep(
-		unsigned int ip,
-		real* z,
-		const real* f,
-		const real* g,
-		const SpDiaMat& mat,
-		real dt,
-		real l2 )
+		unsigned int ip, real* z, const real* f, const real* g,
+		const SpDiaMat& mat, real dt, real a, real b )
 {
 	CpuHelper::mulMatVec( mat, f, z );
-	CpuHelper::addScaledVecs( ip, 0.5, z, 1.0 - l2,	f, z );
-	CpuHelper::addVecScaledVec( ip, z, dt, g );
+	for( unsigned int i = 0; i < ip; ++i )
+	{
+		double f3 = f[ i ];
+		f3 *= f3 * f3;
+		z[ i ] = 0.5 * z[ i ] + a * f[ i ] + dt * g[ i ] + b * f3;
+	}
 }
 
-void CpuSolver0::calculateNSteps(
-		unsigned int ip,
-		real*& z,
-		real*& w,
-		real*& u,
-		const SpDiaMat& mat,
-		real l2,
-		unsigned int nsteps )
+void CpuSolver0::calculateNSteps( unsigned int ip, real*& z, real*& w, real*& u,
+		const SpDiaMat& mat, real a, real b, unsigned int nsteps )
 {
-	real a = 2.0 * ( 1.0 - l2 );
 	real* swap;
 	for( unsigned int i = 0; i < nsteps; ++i )
 	{
 		CpuHelper::mulMatVec( mat, z, u );
-		CpuHelper::addVecScaledVec( ip, u, a, z );
-		CpuHelper::addVecScaledVec( ip, u, -1.0, w );
+		for( unsigned int i = 0; i < ip; ++i )
+		{
+			double z3 = z[ i ];
+			z3 *= z3 * z3;
+			u[ i ] += a * z[ i ] - w[ i ] + b * z3;
+		}
 
 		swap = w;
 		w = z;

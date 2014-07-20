@@ -26,6 +26,8 @@ private:
 			std::vector<real*>& pu,
 			real dt,
 			real l2,
+			real a,
+			real b,
 			unsigned int nsteps );
 
 	void runThreadPool(
@@ -37,6 +39,8 @@ private:
 			std::vector<real*>& pu,
 			real dt,
 			real l2,
+			real a,
+			real b,
 			unsigned int nsteps );
 
 private:

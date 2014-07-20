@@ -16,6 +16,8 @@ CpuSolver1::~CpuSolver1()
 
 void CpuSolver1::solve()
 {
+	// for detailed explanation of the solve method see Solver11::solve
+
 	unsigned int ip = np / ns;
 	unsigned int ndom = 2 * ns - 1;
 	real h = 2 * L / ( np - 1 );
@@ -24,7 +26,7 @@ void CpuSolver1::solve()
 	real l2 = l * l;
 	unsigned int nsteps = ip / 4;
 	unsigned int kmax = ceil( T / ( nsteps * dt ) );
-	error = std::vector<real>( kmax );
+	error = std::vector<double>( kmax );
 
 	std::vector<real> x( np );
 	std::vector<real> f( np );
@@ -60,14 +62,18 @@ void CpuSolver1::solve()
 	SpDiaMat matLeft = allocFDMatrixLeft( l2, ip );
 	SpDiaMat matRight = allocFDMatrixRight( l2, ip );
 
+	real a = 1.0 - l2 - dc;
+	real b = nc * dt * dt;
 	runThreadPool( true, ndom, ip, pz, pw, pu, matInner, matLeft, matRight,
-			dt, l2, nsteps );
+			dt, a, b, nsteps );
 
+	a = 2.0 * ( 1.0 - l2 ) - dc;
 	for( unsigned int k = 0; k < kmax; ++k )
 	{
 		runThreadPool( false, ndom, ip, pz, pw, pu, matInner, matLeft, matRight,
-				dt, l2, nsteps );
+				dt, a, b, nsteps );
 
+		// fix invalid values
 		memcpy( &pz[ 0 ][ ip * 3 / 4 ], &pz[ 1 ][ ip / 4 ],
 				ip / 4 * sizeof( real ) );
 		memcpy( &pw[ 0 ][ ip * 3 / 4 ], &pw[ 1 ][ ip / 4 ],
@@ -102,7 +108,7 @@ void CpuSolver1::solve()
 		error[ k ] = sqrt( h * err );
 	}
 
-	solution = std::vector<real>( np );
+	solution = std::vector<double>( np );
 	for( unsigned int i = 0; i < ndom; i += 2 )
 	{
 		for( unsigned int j = 0; j < ip; ++j )
@@ -183,6 +189,7 @@ SpDiaMat CpuSolver1::allocFDMatrixRight( real l2, unsigned int ip )
 	return mat;
 }
 
+// the loop run by every thread, iterating over all subdomains
 void CpuSolver1::threadLoop(
 		bool firstStep,
 		unsigned int ndom,
@@ -194,18 +201,19 @@ void CpuSolver1::threadLoop(
 		const SpDiaMat& matLeft,
 		const SpDiaMat& matRight,
 		real dt,
-		real l2,
+		real a,
+		real b,
 		unsigned int nsteps )
 {
 	while( true )
 	{
 		m_Mutex.lock();
-		threadId = m_uiThreadId++;
+		threadId = m_uiThreadId++;	// thread-safe counter incrementing
 		m_Mutex.unlock();
 
 		if( threadId >= ndom )
 		{
-			break;
+			break;					// stop if all subdomains are completed
 		}
 
 		const SpDiaMat& mat = ( threadId == 0 ? matLeft
@@ -214,16 +222,17 @@ void CpuSolver1::threadLoop(
 		if( firstStep )
 		{
 			calculateFirstStep( ip, pz[ threadId ], pw[ threadId ],
-					pu[ threadId ],	mat, dt, l2 );
+					pu[ threadId ],	mat, dt, a, b );
 		}
 		else
 		{
 			calculateNSteps( ip, pz[ threadId ], pw[ threadId ], pu[ threadId ],
-					mat, l2, nsteps );
+					mat, a, b, nsteps );
 		}
 	}
 }
 
+// starts multiple threads to calculate either the first step or a full cycle
 void CpuSolver1::runThreadPool(
 		bool firstStep,
 		unsigned int ndom,
@@ -235,18 +244,21 @@ void CpuSolver1::runThreadPool(
 		const SpDiaMat& matLeft,
 		const SpDiaMat& matRight,
 		real dt,
-		real l2,
+		real a,
+		real b,
 		unsigned int nsteps )
 {
 	std::vector<std::thread> vecThreads( threads );
 	m_uiThreadId = 0;
+	// start 'threads' number of threads
 	for( unsigned int i = 0; i < threads; ++i )
 	{
 		vecThreads[ i ] = std::thread( &CpuSolver1::threadLoop, this,
 				firstStep, ndom, ip, std::ref( pz ), std::ref( pw ),
 				std::ref( pu ), std::cref( matInner ), std::cref( matLeft ),
-				std::cref( matRight ), dt, l2, nsteps );
+				std::cref( matRight ), dt, a, b, nsteps );
 	}
+	// wait for all threads to finish execution
 	for( unsigned int i = 0; i < threads; ++i )
 	{
 		vecThreads[ i ].join();

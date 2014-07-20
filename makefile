@@ -5,6 +5,7 @@ BIN						 = wave-eq-cuda
 CXX						 = g++
 SRC						 = $(wildcard *.cpp)
 OBJ						 = $(SRC:%.cpp=%.o)
+#OBJ						 = main.o cpusolver0.o cpusolver1.o cpusolver2.o cpusolver3.o
 CXXFLAGS				 = -std=c++11 -march=native -O3
 LIBS					 = -L$(CUDA_INSTALL_PATH)/lib64 -pthread -lcudart -lm
 CXXDEPENDFILE			 = .cpp-depend
@@ -12,7 +13,8 @@ CXXDEPENDFILE			 = .cpp-depend
 NVCC                    := $(CUDA_INSTALL_PATH)/bin/nvcc
 NVSRC					 = $(wildcard *.cu)
 NVOBJ					 = $(NVSRC:%.cu=%.o)
-INCLUDES                 = -I$(CUDA_INSTALL_PATH)/include 
+#NVOBJ					 = solver7.o solver9.o solver10.o solver11.o
+INCLUDES                 = -I$(CUDA_INSTALL_PATH)/include
 NVCCFLAGS				 = $(INCLUDES) -arch=sm_20 --ptxas-options=-v
 NVDEPENDFILE			 = .cu-depend
 

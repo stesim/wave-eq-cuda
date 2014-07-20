@@ -3,7 +3,6 @@
 #include <cuda_runtime_api.h>
 #include <cstring>
 #include "cudahelper7.h"
-#include <iostream>
 
 Solver7::Solver7()
 {
@@ -15,11 +14,12 @@ Solver7::~Solver7()
 
 void Solver7::solve()
 {
-	//cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 );
+	// for detailed explanation of the solve method see Solver11::solve
 
 	unsigned int ip = np / ns;
 	double h = 2 * L / ( np - 1 );
 	double dt = h / 4.0;
+	double dt2 = dt * dt;
 	double l = dt / h;
 	double l2 = l * l;
 	unsigned int nsteps = ip / 4;
@@ -53,6 +53,8 @@ void Solver7::solve()
 		f[ i ] = u0( x[ i ] );
 		g[ i ] = u1( x[ i ] );
 	}
+
+	// interleave nodes in pairs for coalesced memory access
 	for( unsigned int n = 0; n < blocks; ++n )
 	{
 		for( unsigned int j = 0; j < threads; ++j )
@@ -84,45 +86,18 @@ void Solver7::solve()
 	SpDiaMat matLeft = gpuAllocFDMatrixLeft( l2, ip );
 	SpDiaMat matRight = gpuAllocFDMatrixRight( l2, ip );
 
+	double a = 1.0 - l2 - dc;
+	double b = nc * dt2;
 	CudaHelper7::calculateFirstStep<<<blocks, threads>>>(
-			dt,	h, ip, matInner, matLeft, matRight,	d_w, d_u, d_z );
+			dt,	h, a, b, ip, matInner, matLeft, matRight, d_w, d_u, d_z );
 
-	CudaHelper7::synchronizeResults<<<blocks, threads>>>(
-			ip,
-			d_z,
-			d_w );
+	CudaHelper7::synchronizeResults<<<blocks, threads>>>( ip, d_z, d_w );
 
-		/*
-		cudaMemcpy(	z.data(), d_z, bufSize,	cudaMemcpyDeviceToHost );
-		for( unsigned int n = 0; n < blocks; ++n )
-		{
-			for( unsigned int j = 0; j < threads; j += 2 )
-			{
-				if( n == blocks - 1 && j == threads - 1 )
-				{
-					continue;
-				}
-
-				unsigned int base = n * threads * ip + 2 * j;
-				unsigned int dstBase = ( n * threads + j ) * ip / 2;
-				for( unsigned int i = 0; i < ip / 2; ++i )
-				{
-					solution[ dstBase + 2 * i ] = z[ base + 2 * i * threads ];
-					solution[ dstBase + 2 * i + 1 ] = z[ base + 2 * i * threads + 1 ];
-				}
-			}
-		}
-		for( unsigned int i = 0; i < 32; ++i )
-		{
-			std::cout << solution[ i ] << std::endl;
-		}
-		*/
-
+	a = 2.0 * ( 1.0 - l2 ) - dc;
 	for( unsigned int k = 0; k < kmax; ++k )
 	{
-		CudaHelper7::calculateNSteps<<<blocks, threads/*, threads * ip * sizeof( double )*/>>>(
-				nsteps,	2.0 * ( 1.0 - l2 ),	ip,	matInner, matLeft, matRight,
-				d_z, d_w, d_u );
+		CudaHelper7::calculateNSteps<<<blocks, threads>>>(
+				nsteps, a, b, ip, matInner, matLeft, matRight, d_z, d_w, d_u );
 
 		double2* swap;
 		switch( nsteps % 3 )
@@ -140,19 +115,13 @@ void Solver7::solve()
 				d_u = swap;
 		}
 
-		CudaHelper7::synchronizeResults<<<blocks, threads>>>(
-				ip,
-				d_z,
-				d_w );
+		CudaHelper7::synchronizeResults<<<blocks, threads>>>( ip, d_z, d_w );
 
 		cudaThreadSynchronize();
 
-		cudaMemcpy(
-				z.data(),
-				d_z,
-				bufSize,
-				cudaMemcpyDeviceToHost );
+		cudaMemcpy( z.data(), d_z, bufSize, cudaMemcpyDeviceToHost );
 
+		// rejoin the solutions
 		for( unsigned int n = 0; n < blocks; ++n )
 		{
 			for( unsigned int j = 0; j < threads; j += 2 )
@@ -172,6 +141,7 @@ void Solver7::solve()
 			}
 		}
 
+		// calculate error
 		double t = ( ( k + 1 ) * nsteps + 1 ) * dt;
 		double l2err = 0.0;
 		for( unsigned int i = 0; i < np; ++i )
@@ -197,6 +167,7 @@ const char* Solver7::getName() const
 	return "Solver7";
 }
 
+// generate sparse matrix for inner subdomains in device memory
 SpDiaMat Solver7::gpuAllocFDMatrixInner( double l2, unsigned int ip )
 {
 	unsigned int diagSize = ip - 1;
@@ -223,6 +194,7 @@ SpDiaMat Solver7::gpuAllocFDMatrixInner( double l2, unsigned int ip )
 	return mat;
 }
 
+// generate sparse matrix for leftmost subdomain in device memory
 SpDiaMat Solver7::gpuAllocFDMatrixLeft( double l2, unsigned int ip )
 {
 	unsigned int diagSize = ip - 1;
@@ -249,6 +221,7 @@ SpDiaMat Solver7::gpuAllocFDMatrixLeft( double l2, unsigned int ip )
 	return mat;
 }
 
+// generate sparse matrix for rightmost subdomain in device memory
 SpDiaMat Solver7::gpuAllocFDMatrixRight( double l2, unsigned int ip )
 {
 	unsigned int diagSize = ip - 1;
@@ -275,6 +248,7 @@ SpDiaMat Solver7::gpuAllocFDMatrixRight( double l2, unsigned int ip )
 	return mat;
 }
 
+// free sparse matrix' device memory
 void Solver7::gpuFreeFDMatrix( SpDiaMat& mat )
 {
 	cudaFree( const_cast<int*>( mat.offsets ) );

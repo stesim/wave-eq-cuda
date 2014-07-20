@@ -32,7 +32,8 @@ private:
 			const SpDiaMat& matLeft,
 			const SpDiaMat& matRight,
 			real dt,
-			real l2,
+			real a,
+			real b,
 			unsigned int nsteps );
 
 	void runThreadPool(
@@ -46,7 +47,8 @@ private:
 			const SpDiaMat& matLeft,
 			const SpDiaMat& matRight,
 			real dt,
-			real l2,
+			real a,
+			real b,
 			unsigned int nsteps );
 
 private:
